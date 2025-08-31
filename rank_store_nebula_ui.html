@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nebula Rank Store — Ranks & Upgrades</title>
+  <meta name="description" content="A stylish rank store UI with animated effects, purchase modal, and neon glass cards." />
+  <style>
+    :root{
+      --bg1:#061226; /* deep navy */
+      --bg2:#08203a; /* darker gradient */
+      --accent1:#7dd3fc; /* light blue */
+      --accent2:#60a5fa; /* blue */
+      --glass: rgba(255,255,255,0.06);
+      --glass-2: rgba(255,255,255,0.03);
+      --text:#e6f0ff;
+      --muted:#9fb8d6;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; background: radial-gradient(1200px 600px at 10% 10%, rgba(96,165,250,0.06), transparent 8%), linear-gradient(180deg,var(--bg1),var(--bg2)); color:var(--text); -webkit-font-smoothing:antialiased}
+
+    /* Particle canvas fills the screen */
+    #particle-bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+
+    header{position:relative;z-index:2;padding:28px 36px;display:flex;align-items:center;justify-content:space-between}
+    .logo{display:flex;gap:12px;align-items:center}
+    .logo .mark{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:grid;place-items:center;box-shadow:0 6px 30px rgba(96,165,250,0.08), inset 0 -6px 30px rgba(255,255,255,0.03)}
+    .logo h1{font-size:18px;margin:0}
+    .logo span{display:block;font-size:12px;color:var(--muted)}
+
+    main{position:relative;z-index:1;padding:40px;max-width:1200px;margin:20px auto}
+
+    .hero{display:flex;gap:28px;align-items:center;margin-bottom:24px}
+    .hero-card{flex:1;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:16px;padding:20px;backdrop-filter:blur(6px);box-shadow:0 8px 40px rgba(2,6,23,0.6);border:1px solid rgba(125,211,252,0.06)}
+    .hero-card h2{margin:0 0 6px 0}
+    .hero-card p{margin:0;color:var(--muted)}
+
+    /* Rank grid */
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:18px}
+    .rank-card{position:relative;border-radius:14px;padding:18px;overflow:hidden;background:linear-gradient(180deg,var(--glass),var(--glass-2));border:1px solid rgba(255,255,255,0.03);box-shadow:0 12px 30px rgba(0,0,0,0.5);transition:transform .32s cubic-bezier(.2,.9,.25,1),box-shadow .3s}
+    .rank-card:hover{transform:translateY(-10px) rotateX(3deg);box-shadow:0 18px 60px rgba(2,6,23,0.8)}
+    .rank-top{display:flex;align-items:center;gap:12px}
+    .rank-badge{min-width:64px;height:64px;border-radius:12px;display:grid;place-items:center;font-weight:700;font-size:14px;color:#04263b}
+    .rank-info{flex:1}
+    .rank-info h3{margin:0 0 4px 0}
+    .rank-info p{margin:0;font-size:13px;color:var(--muted)}
+    .price{font-weight:800;font-size:22px}
+
+    /* Neon border for premium ranks */
+    .neon{background:linear-gradient(90deg,rgba(125,211,252,0.14),rgba(96,165,250,0.08));border:1px solid rgba(125,211,252,0.14);}
+    .neon .rank-badge{background:linear-gradient(135deg,#c7f9ff22,#7dd3fc44);box-shadow:0 8px 30px rgba(125,211,252,0.06) inset}
+
+    /* glow effect */
+    .glow::after{content:'';position:absolute;inset:0;border-radius:inherit;filter:blur(18px);opacity:0.55;mix-blend-mode:screen}
+    .rank-card[data-glow='vip']::after{background:linear-gradient(90deg,#7dd3fc55,#60a5fa22)}
+    .rank-card[data-glow='mvp']::after{background:linear-gradient(90deg,#ffd16644,#ff8fab11)}
+
+    .features{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .chip{background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:999px;font-size:12px;color:var(--muted);border:1px solid rgba(255,255,255,0.02)}
+
+    .actions{display:flex;gap:10px;margin-top:16px}
+    .btn{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:700}
+    .btn-primary{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#052231;box-shadow:0 10px 30px rgba(96,165,250,0.12)}
+    .btn-ghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
+
+    /* Modal */
+    .modal{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,rgba(2,6,23,0.6),rgba(2,6,23,0.8));z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+    .modal.open{opacity:1;pointer-events:auto}
+    .modal-panel{width:min(720px,92vw);background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 30px 80px rgba(2,6,23,0.8)}
+    .modal-header{display:flex;justify-content:space-between;align-items:center}
+
+    footer{padding:24px;text-align:center;color:var(--muted)}
+
+    /* small responsive niceties */
+    @media (max-width:600px){header{padding:18px} .hero{flex-direction:column}}
+
+    /* subtle floating animation */
+    .float{animation:floatY 6s ease-in-out infinite}
+    @keyframes floatY{0%{transform:translateY(0)}50%{transform:translateY(-8px)}100%{transform:translateY(0)}}
+
+    /* confetti dots */
+    .confetti{position:absolute;inset:auto 6px 6px auto;width:10px;height:10px;border-radius:50%;opacity:0.95}
+
+    /* rank ribbons */
+    .ribbon{position:absolute;right:-36px;top:12px;transform:rotate(28deg);padding:8px 48px;border-radius:6px;font-weight:800;font-size:12px;background:linear-gradient(90deg,#ffb4b4,#ffd6a5);color:#2b0b00;text-shadow:0 1px 0 rgba(255,255,255,0.12)}
+
+    /* tiny animated sparkle */
+    .sparkle{position:absolute;width:8px;height:8px;border-radius:50%;filter:blur(6px);opacity:.9;mix-blend-mode:screen}
+
+  </style>
+</head>
+<body>
+  <canvas id="particle-bg"></canvas>
+  <header>
+    <div class="logo">
+      <div class="mark float" aria-hidden>
+        <!-- simple nebula icon -->
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#60a5fa"/></linearGradient></defs><rect x="3" y="3" width="18" height="18" rx="6" fill="url(#g)" opacity="0.96"/></svg>
+      </div>
+      <div>
+        <h1>Nebula Rank Store</h1>
+        <span>Elegant ranks — animated UI</span>
+      </div>
+    </div>
+    <nav>
+      <button class="btn btn-ghost" id="toggle-theme">Theme</button>
+      <button class="btn btn-primary" id="open-cart">My Cart (0)</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero-card hero">
+      <div>
+        <h2>Choose your rank — Look epic, play epic</h2>
+        <p>Hover the cards, see effects, click Buy to open the purchase modal. Built with pure HTML/CSS/JS — single file.</p>
+        <div style="margin-top:12px">
+          <span class="chip">Instant Rank</span>
+          <span class="chip">Priority Support</span>
+          <span class="chip">Exclusive Tag</span>
+        </div>
+      </div>
+      <div style="min-width:320px;text-align:right">
+        <div style="display:inline-block;background:rgba(255,255,255,0.02);padding:12px;border-radius:12px">
+          <div style="font-size:13px;color:var(--muted)">Featured</div>
+          <div style="font-weight:900;font-size:20px">UNITED++</div>
+          <div style="color:var(--muted);font-size:14px">The ultimate flex — exclusive cosmetics & priority</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid" id="rank-grid">
+      <!-- Rank cards generated by JS -->
+    </section>
+
+    <section style="margin-top:18px;display:flex;gap:12px;align-items:center;justify-content:center">
+      <button class="btn btn-primary" id="demo-confetti">Celebrate</button>
+      <button class="btn btn-ghost" id="download-html">Download HTML</button>
+    </section>
+  </main>
+
+  <div class="modal" id="buy-modal" aria-hidden>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h3 id="modal-title">Buy Rank</h3>
+          <div id="modal-sub" style="color:var(--muted);font-size:13px">Confirm purchase</div>
+        </div>
+        <div>
+          <button class="btn btn-ghost" id="close-modal">Close</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;margin-top:16px;align-items:center">
+        <div style="width:86px;height:86px;border-radius:12px;background:linear-gradient(135deg,rgba(125,211,252,0.06),rgba(96,165,250,0.02));display:grid;place-items:center;font-weight:800" id="modal-badge">VIP</div>
+        <div style="flex:1">
+          <div style="font-weight:900;font-size:18px" id="modal-name">VIP — P50</div>
+          <div style="color:var(--muted);font-size:13px" id="modal-desc">Small description goes here</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:800" id="modal-price">P50</div>
+          <div style="color:var(--muted);font-size:12px">Secure checkout</div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="cancel-buy">Cancel</button>
+        <button class="btn btn-primary" id="confirm-buy">Confirm & Purchase</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <small>Built with ❤️ — tweak it however you like. Ranks: VIP (P50) • MVP (P100) • MVP+ (P200) • UNITED (P300) • UNITED++ (P400)</small>
+  </footer>
+
+  <script>
+    // --- Rank data (you can edit these) ---
+    const ranks = [
+      {id:'vip',name:'VIP',price:50,tag:'P50',desc:'Basic perks: chat color, small tag',features:['Chat Color','Tag','/nick'] , glow:'vip',ribbon:''},
+      {id:'mvp',name:'MVP',price:100,tag:'P100',desc:'Popular: extra kits & perks',features:['Extra Kit','Priority Queue','Home Set'],glow:'mvp',ribbon:'HOT'},
+      {id:'mvpplus',name:'MVP+',price:200,tag:'P200',desc:'MVP plus cosmetics & XP boost',features:['Cosmetics','XP Boost','Particle Effects'],glow:'mvp',ribbon:'BEST'},
+      {id:'united',name:'UNITED',price:300,tag:'P300',desc:'Elite rank with exclusive channel',features:['Exclusive Channel','Server Tag','Priority Support'],glow:'vip',ribbon:'ELITE'},
+      {id:'united++',name:'UNITED++',price:400,tag:'P400',desc:'Top-tier: everything + vanity',features:['Vanity Items','Custom Tag','Top Priority'],glow:'vip',ribbon:'ULTIMATE'}
+    ];
+
+    const grid = document.getElementById('rank-grid');
+
+    function createCard(r){
+      const el = document.createElement('article');
+      el.className = 'rank-card neon glow float';
+      el.setAttribute('data-glow', r.glow);
+      el.innerHTML = `
+        ${r.ribbon?`<div class="ribbon">${r.ribbon}</div>`:''}
+        <div class="rank-top">
+          <div class="rank-badge" style="background:linear-gradient(135deg, rgba(125,211,252,0.12), rgba(96,165,250,0.06));">${r.name}</div>
+          <div class="rank-info">
+            <h3>${r.name} <span style="color:var(--muted);font-weight:700">${r.tag}</span></h3>
+            <p>${r.desc}</p>
+          </div>
+          <div style="text-align:right">
+            <div class="price">P${r.price}</div>
+            <div style="color:var(--muted);font-size:12px">Instant Delivery</div>
+          </div>
+        </div>
+        <div class="features">
+          ${r.features.map(f=>`<div class="chip">${f}</div>`).join('')}
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary buy" data-id="${r.id}">Buy</button>
+          <button class="btn btn-ghost info" data-id="${r.id}">More</button>
+        </div>
+      `;
+
+      // subtle confetti/sparkles
+      for(let i=0;i<3;i++){
+        const dot = document.createElement('div');
+        dot.className = 'confetti';
+        dot.style.right = `${8 + i*18}px`;
+        dot.style.bottom = `${6 + i*6}px`;
+        dot.style.background = ['#7dd3fc','#60a5fa','#ffd166'][i%3];
+        el.appendChild(dot);
+      }
+
+      return el;
+    }
+
+    ranks.forEach(r=>grid.appendChild(createCard(r)));
+
+    // Buy modal logic
+    const modal = document.getElementById('buy-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalName = document.getElementById('modal-name');
+    const modalPrice = document.getElementById('modal-price');
+    const modalDesc = document.getElementById('modal-desc');
+    const modalBadge = document.getElementById('modal-badge');
+
+    document.addEventListener('click', e=>{
+      const buy = e.target.closest('.buy');
+      if(buy){
+        const id = buy.dataset.id;
+        const r = ranks.find(x=>x.id===id);
+        openModal(r);
+      }
+    });
+
+    function openModal(r){
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden','false');
+      modalTitle.textContent = `Buy — ${r.name}`;
+      modalName.textContent = `${r.name} — ${r.tag}`;
+      modalPrice.textContent = `P${r.price}`;
+      modalDesc.textContent = r.desc;
+      modalBadge.textContent = r.name;
+    }
+    document.getElementById('close-modal').addEventListener('click', ()=>{modal.classList.remove('open');modal.setAttribute('aria-hidden','true')});
+    document.getElementById('cancel-buy').addEventListener('click', ()=>{modal.classList.remove('open');modal.setAttribute('aria-hidden','true')});
+    document.getElementById('confirm-buy').addEventListener('click', ()=>{confirmPurchase()});
+
+    function confirmPurchase(){
+      // playful confetti + success pulse
+      launchConfetti();
+      modal.classList.remove('open');
+      showToast('Purchase confirmed! Check your cart.');
+    }
+
+    // -- tiny toast system
+    function showToast(text){
+      const t = document.createElement('div');
+      t.textContent = text;
+      t.style.position='fixed';t.style.right='20px';t.style.bottom='20px';t.style.background='linear-gradient(90deg,var(--accent1),var(--accent2))';t.style.color='#052231';t.style.padding='10px 14px';t.style.borderRadius='10px';t.style.fontWeight=800; t.style.zIndex=60; t.style.boxShadow='0 10px 30px rgba(2,6,23,0.6)';
+      document.body.appendChild(t);
+      setTimeout(()=>t.style.transform='translateY(-8px)',20);
+      setTimeout(()=>{t.style.opacity=0;t.style.transform='translateY(12px)';setTimeout(()=>t.remove(),400)},2500);
+    }
+
+    // -- particles background
+    const canvas = document.getElementById('particle-bg');
+    const ctx = canvas.getContext('2d');
+    let W=canvas.width=innerWidth, H=canvas.height=innerHeight;
+    const particles=[];
+    function rand(min,max){return Math.random()*(max-min)+min}
+    for(let i=0;i<80;i++)particles.push({x:rand(0,W),y:rand(0,H),r:rand(0.6,2.2),vx:rand(-0.2,0.2),vy:rand(-0.15,0.15),h:rand(200,260)});
+    function tick(){
+      ctx.clearRect(0,0,W,H);
+      particles.forEach(p=>{
+        p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+        ctx.beginPath();
+        ctx.fillStyle = `hsla(${p.h},80%,65%,0.06)`;
+        ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx.fill();
+      });
+      requestAnimationFrame(tick);
+    }
+    tick();
+    addEventListener('resize',()=>{W=canvas.width=innerWidth;H=canvas.height=innerHeight});
+
+    // --- confetti (simple) ---
+    function launchConfetti(){
+      const colors=['#7dd3fc','#60a5fa','#ffd166','#ff8fab','#b9f6ca'];
+      for(let i=0;i<60;i++){
+        const el=document.createElement('div');
+        el.className='confetti';
+        el.style.left = `${innerWidth/2 + (Math.random()*300-150)}px`;
+        el.style.top = `${innerHeight/2 + (Math.random()*120-60)}px`;
+        el.style.background = colors[Math.floor(Math.random()*colors.length)];
+        el.style.position='fixed'; el.style.zIndex=80; el.style.width='10px'; el.style.height='10px';
+        document.body.appendChild(el);
+        const dx = (Math.random()*2-1)*30; const dy = (Math.random()*6+40);
+        el.animate([{transform:'translateY(0px) rotate(0deg)',opacity:1},{transform:`translate(${dx}px,${dy}px) rotate(${Math.random()*720}deg)`,opacity:0}],{duration:1200+Math.random()*800,easing:'cubic-bezier(.17,.67,.3,1)'});
+        setTimeout(()=>el.remove(),2200);
+      }
+    }
+
+    document.getElementById('demo-confetti').addEventListener('click', launchConfetti);
+
+    // download HTML (serializes document to single file)
+    document.getElementById('download-html').addEventListener('click', ()=>{
+      const blob = new Blob([document.documentElement.outerHTML],{type:'text/html'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='nebula-rank-store.html'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // tiny cart counter demo
+    let cartCount=0;
+    document.querySelectorAll('.buy').forEach(b=>b.addEventListener('click',()=>{cartCount++;document.getElementById('open-cart').textContent=`My Cart (${cartCount})`}));
+
+    // theme toggle (subtle) - purely cosmetic for demo
+    document.getElementById('toggle-theme').addEventListener('click', ()=>{
+      document.documentElement.style.setProperty('--accent1', Math.random()>0.5? '#7dd3fc' : '#ffd166');
+      document.documentElement.style.setProperty('--accent2', Math.random()>0.5? '#60a5fa' : '#ff8fab');
+      showToast('Theme switched ✨');
+    });
+
+    // small accessibility improvement: escape to close modal
+    document.addEventListener('keydown', e=>{if(e.key==='Escape'){modal.classList.remove('open');modal.setAttribute('aria-hidden','true')}});
+
+  </script>
+</body>
+</html>
